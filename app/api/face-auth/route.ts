@@ -4,14 +4,14 @@ export async function POST(req: NextRequest) {
   try {
     const { imageData } = await req.json();
 
-    // Remove prefixo base64
+    // Remove prefixo data:image
     const base64 = imageData.replace(/^data:image\/\w+;base64,/, "");
     const buffer = Buffer.from(base64, "base64");
 
-    // Carrega imagem com Canvas interno do Node
-    const { createCanvas, loadImage } = await import("canvas");
-    const img = await loadImage(buffer);
+    // Biblioteca compatível com Vercel
+    const { createCanvas, loadImage } = await import("@napi-rs/canvas");
 
+    const img = await loadImage(buffer);
     const width = img.width;
     const height = img.height;
 
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     let totalPixels = width * height;
     let skinPixels = 0;
 
-    // Área central (30% da imagem)
+    // Área central da selfie
     const startX = Math.floor(width * 0.35);
     const endX = Math.floor(width * 0.65);
     const startY = Math.floor(height * 0.30);
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
         const g = data[i + 1];
         const b = data[i + 2];
 
-        // Regra simples de pixel de pele
+        // Regra de pixel de pele
         const isSkin =
           r > 90 &&
           g > 40 &&
@@ -50,14 +50,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // % de pele detectada no centro
     const skinPercent =
       (skinPixels / (totalPixels * 0.3 * 0.4)) * 100;
 
-    // Regras simples
     const selfie =
-      skinPercent > 8 && // rosto deve ocupar boa parte
-      skinPercent < 60;  // não pode ser imagem toda bege
+      skinPercent > 8 &&   // tem rosto suficiente
+      skinPercent < 60;    // não é foto de objeto bege
 
     return NextResponse.json({
       selfie,
@@ -65,6 +63,9 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error(err);
-    return NextResponse.json({ error: "Erro no backend" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Erro no backend" },
+      { status: 500 }
+    );
   }
 }
