@@ -1,3 +1,5 @@
+export const runtime = "nodejs";
+
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
@@ -54,8 +56,8 @@ export async function POST(req: NextRequest) {
       (skinPixels / (totalPixels * 0.3 * 0.4)) * 100;
 
     const selfie =
-      skinPercent > 8 &&   // tem rosto suficiente
-      skinPercent < 60;    // não é foto de objeto bege
+      skinPercent > 8 &&
+      skinPercent < 60;
 
     return NextResponse.json({
       selfie,
