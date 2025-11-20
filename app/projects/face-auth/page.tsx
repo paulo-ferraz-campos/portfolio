@@ -44,10 +44,18 @@ export default function FaceAuthPage() {
         body: JSON.stringify({ imageData }),
       });
 
+      const data = await res.json();
+
+      if (data.selfie) {
+        setStatus("real");
+      } else {
+        setStatus("fake");
+      }
+
       setCapturedImage(imageData);
 
-      const data = await res.json();
-      setStatus(data.status);
+      //const data = await res.json();
+      //setStatus(data.status);
     } catch (err) {
       alert("Erro ao enviar imagem: " + err);
       setStatus(null);
