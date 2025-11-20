@@ -1,5 +1,3 @@
-export const runtime = "nodejs";
-
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
@@ -10,64 +8,77 @@ export async function POST(req: NextRequest) {
     const base64 = imageData.replace(/^data:image\/\w+;base64,/, "");
     const buffer = Buffer.from(base64, "base64");
 
-    // Biblioteca compatível com Vercel
-    const { createCanvas, loadImage } = await import("@napi-rs/canvas");
+    // Lê header simples do JPEG ou PNG – sem decodificar tudo
+    const stats = analyzeImageBuffer(buffer);
 
-    const img = await loadImage(buffer);
-    const width = img.width;
-    const height = img.height;
-
-    const canvas = createCanvas(width, height);
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(img, 0, 0);
-
-    const imgData = ctx.getImageData(0, 0, width, height);
-    const data = imgData.data;
-
-    let totalPixels = width * height;
-    let skinPixels = 0;
-
-    // Área central da selfie
-    const startX = Math.floor(width * 0.35);
-    const endX = Math.floor(width * 0.65);
-    const startY = Math.floor(height * 0.30);
-    const endY = Math.floor(height * 0.70);
-
-    for (let y = startY; y < endY; y++) {
-      for (let x = startX; x < endX; x++) {
-        const i = (y * width + x) * 4;
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-
-        // Regra de pixel de pele
-        const isSkin =
-          r > 90 &&
-          g > 40 &&
-          b < 150 &&
-          r > g &&
-          r - g > 15;
-
-        if (isSkin) skinPixels++;
-      }
-    }
-
-    const skinPercent =
-      (skinPixels / (totalPixels * 0.3 * 0.4)) * 100;
-
-    const selfie =
-      skinPercent > 8 &&
-      skinPercent < 60;
-
-    return NextResponse.json({
-      selfie,
-      skinPercent: skinPercent.toFixed(2) + "%",
-    });
+    return NextResponse.json(stats);
   } catch (err) {
     console.error(err);
-    return NextResponse.json(
-      { error: "Erro no backend" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Erro no backend" }, { status: 500 });
   }
+}
+
+
+// ------------ Análise simples de imagem SEM CANVAS ------------
+
+// Detecta se é PNG ou JPEG e extrai largura/altura lendo apenas os headers
+function analyzeImageBuffer(buffer: Buffer) {
+  // Detecta formato
+  const isPNG = buffer.slice(1, 4).toString() === "PNG";
+  const isJPEG = buffer[0] === 0xFF && buffer[1] === 0xD8;
+
+  let width = 0;
+  let height = 0;
+
+  if (isPNG) {
+    // Em PNG: largura e altura ficam no IHDR (bytes 16–24)
+    width = buffer.readUInt32BE(16);
+    height = buffer.readUInt32BE(20);
+  }
+
+  if (isJPEG) {
+    // Faz uma varredura simples até achar SOF0
+    let i = 2;
+    while (i < buffer.length) {
+      if (buffer[i] === 0xFF && buffer[i + 1] === 0xC0) {
+        height = buffer.readUInt16BE(i + 5);
+        width = buffer.readUInt16BE(i + 7);
+        break;
+      }
+      i++;
+    }
+  }
+
+  // Selfie costuma ser vertical
+  const isVertical = height > width;
+
+  // Detecta se a imagem é muito uniforme (foto editada / documento / print)
+  const sample = buffer.subarray(0, 2000);
+  const avg = sample.reduce((s, v) => s + v, 0) / sample.length;
+
+  // Contraste simples
+  let min = 255, max = 0;
+  for (const v of sample) {
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  const contrast = max - min;
+
+  // Verifica se média de cor parece pele (bem aproximado)
+  const isSkinTone = avg > 80 && avg < 200;
+
+  const isLikelySelfie =
+    isVertical &&
+    contrast > 30 &&
+    isSkinTone;
+
+  return {
+    width,
+    height,
+    isVertical,
+    contrast,
+    avgColor: avg,
+    isSkinTone,
+    selfie: isLikelySelfie
+  };
 }
