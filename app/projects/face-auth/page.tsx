@@ -6,6 +6,7 @@ import { Navigation } from "../../components/nav";
 export default function FaceAuthPage() {
   const [status, setStatus] = useState<null | "loading" | "real" | "fake">(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
 
   async function abrirCamera() {
     try {
@@ -43,6 +44,8 @@ export default function FaceAuthPage() {
         body: JSON.stringify({ imageData }),
       });
 
+      setCapturedImage(imageData);
+
       const data = await res.json();
       setStatus(data.status);
     } catch (err) {
@@ -70,12 +73,20 @@ export default function FaceAuthPage() {
         Abrir câmera
       </button>
 
-      <div className="mb-6">
+      <div className="flex gap-4 items-center">
         <video
           ref={videoRef}
           autoPlay
-          className="w-full max-w-sm rounded border border-zinc-700"
+          className="w-[120px] h-[120px] object-cover rounded border border-zinc-700"
         />
+
+        {capturedImage && (
+          <img
+            src={capturedImage}
+            alt="captured"
+            className="w-[120px] h-[120px] object-cover rounded border border-zinc-700"
+          />
+        )}
       </div>
 
       <button
